@@ -1,25 +1,82 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+output:
+  html_document: default
 ---
+Peer Assessment 1
+==================
 
+In this assignment, we analyze data about personal movement from activity monitoring devices. This first code chunk will download the data and load it into the workspace
+```{r loaddata, echo=TRUE}
 
-## Loading and preprocessing the data
+if(!file.exists("repdata-data-activity.zip")){
+        fileURL <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+        download.file(url = fileURL, destfile = "repdata-data-activity.zip", method = "curl")
+        downloadDate <- date()
+        unzip(zipfile = "repdata-data-activity.zip")
+        }
+data <- read.csv(file = "activity.csv")
+```
 
+Next we will do some quick exploratory data analysis
+```{r explore, echo=TRUE}
+names(data)
+str(data)
+summary(data)
+plot(data$date, data$steps)
+```
 
+What is the mean total number of steps taken per day?
+```{r meansteps, echo=TRUE}
+totalsteps <- aggregate(steps ~ date, data = data, FUN = sum)
+hist(totalsteps$steps, main = "Total steps taken each day", xlab = "day", col = "turquoise")
+mean(totalsteps$steps)
+median(totalsteps$steps)
+```
 
-## What is mean total number of steps taken per day?
+What is the average daily activity pattern?
+```{r avgDailyPattern, echo=TRUE}
+avgsteps <- aggregate(steps ~ interval, data = data, FUN = mean)
+library(ggplot2)
+ggplot(avgsteps) + geom_line(aes(x = interval, y = steps)) + geom_smooth(aes(x=interval,y=steps)) + ggtitle(label = "Average number of steps over all days")
+maximum <- which(grepl(max(avgsteps$steps), avgsteps$steps))
+avgsteps[maximum,]
+```
+Maximum number of steps seems to be between 8:35am and 8:40am
 
+Imputing missing values
+```{r missing, echo=TRUE}
+missing <- sum(is.na(data$steps))
+missing
+```
 
+We'll use the mean step for all days to replace missing values in a new dataset
+```{r replaceNA, echo=TRUE}
+data2 <- data
+na_ID <- which(is.na(data2$steps))
+means <- rep(mean(data2$steps, na.rm = TRUE), times = length(na_ID))
+data2[na_ID, "steps"] <- means
+```
 
-## What is the average daily activity pattern?
+Make a histogram of the total number of steps taken each day, then caluculate mean, median for the total number of steps taken each day
+```{r histnewdata, echo=TRUE}
+totalstepsnew <- aggregate(steps ~ date, data = data2, FUN = sum)
+hist(totalstepsnew$steps, main = "Total number of steps per day for data with no NA", col = "plum")
+mean(totalstepsnew$steps)
+median(totalstepsnew$steps)
+```
+After substituting in the mean for NA values, the mean and the median are exactly the same instead of having a difference of 1.19 as in above
 
+Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
+```{r week-day, echo=TRUE}
+library(dplyr)
+data2$date <- as.Date(data2$date)
+data2 <- mutate(data2, day = weekdays(date)) 
+data2$day <- ifelse(data2$day %in% c("Saturday", "Sunday"),"weekend","weekday")
+data2[sample(1:dim(data2)[1], size = 5),]
+data2$day <- factor(data2$day)
+stepsPerDay <- aggregate(steps ~ interval + day, data = data2, mean)
+library(lattice)
+xyplot(x = steps ~ interval | day, data = stepsPerDay, type = "l", layout = c(1,2), ylab = "Number of steps", xlab = "Interval")
+```
 
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+Our graphs reveal that fewer steps are taken during weekdays than over weekend days, posibly due to the fact that our anonymous person has more time to walk on weekends
